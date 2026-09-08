@@ -1,0 +1,63 @@
+name: Build and Deploy Health Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r app/requirements.txt flake8
+
+      - name: Check code style
+        run: flake8 app/pipeline.py --max-line-length=100
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/health-pipeline:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/health-pipeline:latest
+            docker stop health-pipeline 2>/dev/null || true
+            docker rm health-pipeline 2>/dev/null || true
+            docker run -d --name health-pipeline \
+              -e RAW_BUCKET=${{ secrets.RAW_BUCKET }} \
+              -e PROCESSED_BUCKET=${{ secrets.PROCESSED_BUCKET }} \
+              -e AWS_DEFAULT_REGION=us-east-1 \
+              ${{ secrets.DOCKERHUB_USERNAME }}/health-pipeline:latest
+            echo "Deployed at $(date)"
