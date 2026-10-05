@@ -1,29 +1,55 @@
+# ============================================================
+# Health Data Pipeline - CI/CD Workflow
+# ============================================================
+# Pipeline stages:
+#   1. Validate Python code quality
+#   2. Build the Docker image
+#   3. Push the image to Docker Hub
+#   4. Deploy the latest container to Amazon EC2
+#
+# Deployment credentials and environment-specific values are
+# stored securely using GitHub Actions Secrets.
+# ============================================================
+
 name: Build and Deploy Health Pipeline
 
 on:
-   workflow_dispatch:
-   push:
+  # Allow the pipeline to be started manually from GitHub Actions.
+  workflow_dispatch:
+
+  # Automatically run when application code changes on main.
+  push:
     branches: [main]
     paths:
       - "app/**"
 
 jobs:
+
+  # ── Code Quality ────────────────────────────────────────────
+  # Validate Python code before allowing a container build.
   test:
     runs-on: ubuntu-latest
 
     steps:
+      # Retrieve the repository contents on the GitHub runner.
       - uses: actions/checkout@v4
 
+      # Match the Python runtime used by the Docker application.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # Install application dependencies and the Flake8 linter.
       - name: Install dependencies
         run: pip install -r app/requirements.txt flake8
 
+      # Enforce basic Python code-quality standards.
       - name: Check code style
         run: flake8 app/pipeline.py --max-line-length=100
 
+
+  # ── Container Build and Registry Push ───────────────────────
+  # This job runs only after the code-quality job succeeds.
   build-and-push:
     runs-on: ubuntu-latest
     needs: test
@@ -31,34 +57,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Authenticate to Docker Hub using encrypted repository secrets.
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Build the application image and publish it to Docker Hub.
       - uses: docker/build-push-action@v5
         with:
           context: ./app
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/health-pipeline:latest
 
+
+  # ── EC2 Deployment ──────────────────────────────────────────
+  # Deployment begins only after the Docker image is successfully
+  # built and published.
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
 
     steps:
+      # Connect to the EC2 host using an SSH key stored in
+      # GitHub Actions Secrets.
       - uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+
           script: |
+            # Retrieve the newest application image.
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/health-pipeline:latest
+
+            # Remove a previous pipeline container if one exists.
             docker stop health-pipeline 2>/dev/null || true
             docker rm health-pipeline 2>/dev/null || true
+
+            # Start the latest pipeline container.
+            # S3 bucket names are injected at runtime rather than
+            # embedded inside the Docker image.
             docker run -d --name health-pipeline \
               -e RAW_BUCKET=${{ secrets.RAW_BUCKET }} \
               -e PROCESSED_BUCKET=${{ secrets.PROCESSED_BUCKET }} \
               -e AWS_DEFAULT_REGION=us-east-1 \
               ${{ secrets.DOCKERHUB_USERNAME }}/health-pipeline:latest
+
             echo "Deployed at $(date)"
