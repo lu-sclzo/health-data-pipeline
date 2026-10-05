@@ -53,6 +53,9 @@ resource "aws_s3_bucket" "processed" {
   }
 }
 
+
+# ── Raw Bucket Security Controls ──────────────────────────────
+
 # Block all public access to the raw health-data bucket.
 # Objects are accessed only through authorized AWS identities.
 resource "aws_s3_bucket_public_access_block" "raw" {
@@ -80,6 +83,41 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "raw" {
 # accidental overwrites or deletions.
 resource "aws_s3_bucket_versioning" "raw" {
   bucket = aws_s3_bucket.raw.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+
+# ── Processed Bucket Security Controls ────────────────────────
+
+# Block all public access to transformed health-data objects.
+resource "aws_s3_bucket_public_access_block" "processed" {
+  bucket = aws_s3_bucket.processed.id
+
+  block_public_acls       = true
+  ignore_public_acls      = true
+  block_public_policy     = true
+  restrict_public_buckets = true
+}
+
+# Encrypt processed datasets at rest using Amazon S3
+# server-side encryption with AES-256.
+resource "aws_s3_bucket_server_side_encryption_configuration" "processed" {
+  bucket = aws_s3_bucket.processed.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Enable versioning on processed datasets to preserve previous
+# object versions and protect against accidental overwrites.
+resource "aws_s3_bucket_versioning" "processed" {
+  bucket = aws_s3_bucket.processed.id
 
   versioning_configuration {
     status = "Enabled"
