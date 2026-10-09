@@ -11,6 +11,7 @@ The project also incorporates IAM-based access controls, S3 encryption and versi
 **All healthcare records used in this project are synthetic. No real patient information was processed.**
 
 ## Architecture
+![AWS Health Data Pipeline Architecture](docs/images/AWS%20Health%20Data%20Pipeline%20Architecture.png)
 
 *AWS architecture infographic will be inserted here.*
 
