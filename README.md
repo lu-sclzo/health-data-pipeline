@@ -1,21 +1,201 @@
-AWS Health Data Pipeline Project
+# AWS Health Data Pipeline
 
-This is a hands-on AWS project I built to simulate a health-data processing pipeline similar to infrastructure used for public-sector/health-data workloads.
+## Project Overview
 
-I created separate Amazon S3 raw and processed data layers, configured private access, encryption and versioning controls, and used IAM roles so the application could access AWS resources without hard-coded AWS credentials.
+This project simulates a secure, cloud-based healthcare data processing pipeline using Amazon Web Services (AWS). It demonstrates how synthetic clinic records can be ingested, validated, transformed, and stored using cloud infrastructure, containerization, Infrastructure as Code (IaC), and CI/CD automation.
 
-I built a Python/Pandas ETL pipeline that reads synthetic clinic data from S3, validates and cleans the records, standardizes fields, and writes the transformed dataset into a processed S3 bucket.
+The pipeline uses Amazon S3 for data storage, Python and Pandas for ETL processing, Docker containers running on Amazon EC2, Terraform for infrastructure provisioning, and GitHub Actions for automated testing and deployment.
 
-I then containerized the pipeline with Docker and ran it on Amazon EC2. I also rebuilt the infrastructure using Terraform, including S3, IAM, EC2, security groups, and CloudWatch resources, and verified Terraform idempotency before destroying the infrastructure through Terraform.
+The project also incorporates IAM-based access controls, S3 encryption and versioning, CloudWatch monitoring, and Amazon SNS notifications.
 
-For CI/CD, I connected the project to GitHub Actions and Docker Hub. A GitHub workflow tests the Python code with Flake8, builds the Docker image, pushes it to Docker Hub, and deploys it to EC2. I troubleshot several real deployment issues along the way, including IAM permissions, EC2 networking/SSH access, Terraform instance compatibility, and CI/CD failures.
+**All healthcare records used in this project are synthetic. No real patient information was processed.**
 
-Finally, I integrated Amazon CloudWatch Logs with the Docker workload, created a metric filter for pipeline failures, configured a CloudWatch alarm, and connected it to Amazon SNS for email notifications. I manually triggered the alarm and successfully received the alert.
+## Architecture
 
-Tech used: AWS S3 • EC2 • IAM • CloudWatch • SNS • Terraform • Docker • GitHub Actions • Python • Pandas • Boto3 • Git • Linux
+*AWS architecture infographic will be inserted here.*
 
-The final flow was essentially:
+### Data Processing Flow
 
-Raw S3 → EC2/Docker → Python ETL → Processed S3 → CloudWatch → SNS alerts
+```text
+Synthetic Clinic Data
+        |
+        v
+Amazon S3 (Raw Bucket)
+        |
+        v
+Amazon EC2 + Docker
+        |
+        v
+Python / Pandas ETL
+        |
+        v
+Amazon S3 (Processed Bucket)
+```
 
-All patient/clinic information used for testing was synthetic.
+CloudWatch provides monitoring, while CloudWatch alarms and Amazon SNS support failure notifications. Terraform manages AWS infrastructure, and GitHub Actions automates the application build and deployment workflow.
+
+## Technologies Used
+
+| Category | Technologies |
+|---|---|
+| Cloud Infrastructure | AWS EC2, Amazon S3, IAM |
+| Data Engineering | Python, Pandas, Boto3 |
+| Containerization | Docker, Docker Hub |
+| Infrastructure as Code | Terraform |
+| CI/CD | GitHub Actions |
+| Monitoring and Alerting | Amazon CloudWatch, Amazon SNS |
+| Security | IAM Roles, S3 Encryption, Private Buckets, Security Groups |
+| Development Tools | Git, GitHub, Linux, Flake8 |
+
+## 1. Raw Data Ingestion — Amazon S3
+
+I created a dedicated Amazon S3 bucket for storing incoming synthetic clinic datasets.
+
+The raw data layer provides a separate storage location for source files before processing.
+
+Security controls include restricted public access, server-side encryption, versioning, and IAM-based access.
+
+![Raw S3 Bucket](docs/images/1-clinic-data-raw-lucas-2026.png)
+
+*Evidence: Raw S3 bucket containing the synthetic clinic report used as the ETL input.*
+
+## 2. ETL Processing — Python and Pandas
+
+I developed a Python ETL application using Pandas and Boto3 to retrieve CSV datasets from Amazon S3, validate records, standardize fields, and upload transformed data.
+
+The processing logic includes:
+
+- Removing records without patient identifiers
+- Standardizing visit dates
+- Normalizing diagnosis values
+- Converting age fields into consistent numeric values
+- Standardizing ZIP code formatting
+- Adding processing timestamps
+- Logging processing results and failures
+
+![ETL Processing](docs/images/2-etl-processing.png)
+
+*Evidence: Successful ETL execution showing source file ingestion, record cleaning, and processed data output.*
+
+## 3. Processed Data Storage — Amazon S3
+
+After transformation, the ETL application uploads cleaned datasets to a separate processed S3 bucket.
+
+This separation helps maintain a clear distinction between original input files and transformed output.
+
+The processed data layer is configured with private access, encryption, and object versioning.
+
+![Processed S3 Bucket](docs/images/3-s3-processed-bucket.png)
+
+*Evidence: Processed S3 bucket containing the cleaned clinic dataset generated by the ETL application.*
+
+## 4. Infrastructure as Code — Terraform
+
+I used Terraform to define and provision AWS resources, including:
+
+- Raw and processed S3 buckets
+- IAM roles and permissions
+- EC2 compute resources
+- EC2 security groups
+- CloudWatch log group resources
+
+I validated the Terraform configuration, deployed infrastructure, and tested idempotency by confirming that subsequent Terraform execution detected no infrastructure changes.
+
+Infrastructure was also destroyed through Terraform during project cleanup.
+
+![Terraform Infrastructure](docs/images/4-terraform-infrastructure.png)
+
+*Evidence: AWS infrastructure provisioned through Terraform.*
+
+## 5. CI/CD Automation — GitHub Actions
+
+I implemented a GitHub Actions workflow to automate the software delivery process.
+
+The workflow performs three dependent stages:
+
+1. **Test:** Install Python dependencies and run Flake8 code checks.
+2. **Build and Push:** Build the Docker image and publish it to Docker Hub.
+3. **Deploy:** Connect to EC2 using configured GitHub secrets, retrieve the latest image, and execute the deployment commands.
+
+This workflow demonstrates automated code validation, container image publishing, and deployment.
+
+![GitHub Actions Workflow](docs/images/5-github-actions-success.png)
+
+*Evidence: Successful GitHub Actions workflow completing testing, image publishing, and deployment.*
+
+## 6. Containerized Deployment — Docker and EC2
+
+I containerized the Python ETL application using Docker and executed it on Amazon EC2.
+
+The application accesses AWS resources through IAM role-based credentials rather than hard-coded access keys.
+
+The container reads raw data from S3, performs the transformations, and writes the resulting CSV file to the processed bucket.
+
+![Docker EC2 Execution](docs/images/6-docker-ec2.png)
+
+*Evidence: Dockerized Python ETL pipeline successfully executed on EC2, completing with exit code 0.*
+
+## 7. Infrastructure Monitoring — Amazon CloudWatch
+
+I used Amazon CloudWatch to monitor AWS infrastructure associated with the pipeline.
+
+CloudWatch metrics provide visibility into EC2 instance behavior, including CPU utilization during workload execution.
+
+The Terraform configuration also defines a CloudWatch log group for pipeline observability.
+
+![CloudWatch Monitoring](docs/images/7-cloudwatch-monitoring.png)
+
+*Evidence: Amazon CloudWatch CPU utilization metrics for the EC2 instance used to execute the containerized pipeline.*
+
+## 8. Failure Alerting — CloudWatch and Amazon SNS
+
+I configured failure monitoring using Amazon CloudWatch and Amazon SNS.
+
+The alerting setup included a CloudWatch alarm for pipeline failures and an SNS email notification subscription.
+
+I manually triggered the alarm to verify that the notification mechanism worked successfully.
+
+![SNS Alert](docs/images/8-sns-alert.png)
+
+*Evidence: Amazon SNS email notification received after a manual test of the CloudWatch failure alarm.*
+
+## Security Implementation
+
+Security was incorporated throughout the project:
+
+- **IAM Roles:** AWS service access without embedding long-lived credentials in application code.
+- **Least-Privilege Access:** Restricted S3 permissions for reading raw datasets and writing processed outputs.
+- **Private S3 Storage:** Public access blocking for both data buckets.
+- **Encryption at Rest:** S3 server-side encryption using AES-256.
+- **Object Versioning:** Enabled for raw and processed datasets.
+- **EC2 Security Groups:** Restricted inbound SSH access to a configured administrator IP address.
+- **GitHub Secrets:** Sensitive deployment credentials and connection details managed through repository secrets.
+- **Synthetic Data:** No real patient information used during development or testing.
+
+## Troubleshooting and Lessons Learned
+
+During development, I investigated and resolved several deployment and infrastructure issues involving IAM permissions, EC2 networking and SSH connectivity, Terraform instance configuration, and CI/CD workflow failures.
+
+These challenges provided practical experience with cloud troubleshooting, access control, infrastructure validation, and automated deployment workflows.
+
+## Project Results
+
+The completed project demonstrated:
+
+- Successful ingestion and transformation of synthetic clinic datasets
+- Separate secure raw and processed S3 storage layers
+- A working Dockerized Python ETL application on Amazon EC2
+- Terraform-managed AWS infrastructure
+- Automated CI/CD testing, container publishing, and deployment
+- CloudWatch infrastructure monitoring
+- Successfully tested CloudWatch-to-SNS email alerting
+
+## Future Improvements
+
+Potential enhancements include event-driven ETL execution, improved automated testing, stronger observability, and automated deployment of monitoring and alerting resources through Terraform.
+
+---
+
+**Project Type:** Hands-on AWS Cloud Engineering / DevOps / Data Engineering Portfolio Project
+
+**Data Classification:** Synthetic test data only
