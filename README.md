@@ -13,7 +13,7 @@ The project also incorporates IAM-based access controls, S3 encryption and versi
 ## Architecture
 ![AWS Health Data Pipeline Architecture](docs/images/AWS%20Health%20Data%20Pipeline%20Architecture.png)
 
-*AWS architecture infographic will be inserted here.*
+
 
 ### Data Processing Flow
 
